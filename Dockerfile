@@ -8,4 +8,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-venv wget xz-utils && rm -rf /var/lib/apt/lists/*
 ENV IDF_CCACHE_ENABLE=1
 RUN git config --system --add safe.directory '*'
+ENV IDF_TOOLS_PATH=/work/.espressif
 WORKDIR /work
