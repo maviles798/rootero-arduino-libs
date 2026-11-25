@@ -1,0 +1,5 @@
+# Rootero settings, added to the stock settings of every chip.
+# TLS: receive buffer stays 16 KB, send buffer is 4 KB (stock: 16 KB both ways).
+CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
