@@ -43,6 +43,9 @@ export IDF_TOOLS_PATH="${IDF_TOOLS_PATH:-/work/.espressif}"
 source "$IDF_PATH/export.sh"
 # One chip at a time, each with the component versions of the stock build (its lock file):
 # without it the component manager takes today's newest versions.
+# build.sh empties its output folder at every run: each chip is collected in /work/result.
+RESULT=/work/result
+rm -rf "$RESULT"; mkdir -p "$RESULT"
 for target in ${TARGETS//,/ }; do
     lock="/recipe/locks/$CORE_VERSION/$target.lock"
     [ -f "$lock" ] || { echo "no lock file for $target ($lock)"; exit 1; }
@@ -53,5 +56,8 @@ for target in ${TARGETS//,/ }; do
               <(grep -E "^  [a-z].*:$|^    version:" dependencies.lock) > /dev/null; then
         echo "ERROR: $target was built with other component versions than the lock file"; exit 1
     fi
+    cp -a "out/tools/esp32-arduino-libs/$target" "$RESULT/"
+    cp -a out/tools/esp32-arduino-libs/tools.json out/tools/esp32-arduino-libs/versions.txt \
+          out/tools/esp32-arduino-libs/package.json "$RESULT/"
 done
-echo "* done: /work/lib-builder/out/tools/esp32-arduino-libs"
+echo "* done: $RESULT"

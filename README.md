@@ -22,6 +22,6 @@ docker run --rm -v rootero-libs-work:/work -v "$PWD":/recipe:ro rootero-libs-bui
 
 The result is in the `rootero-libs-work` volume under `lib-builder/out/tools/esp32-arduino-libs`.
 
-Status: recipe under test, no package released yet.
+Releases: one file per version, `rootero-libs-<core>-r<n>.tar.xz`. A name is never reused. `./package.sh <n>` packs a build.
 
 The libraries keep their original licenses (see the Espressif repositories).
