@@ -7,7 +7,8 @@ source pins.env
 N="$1"; [ -n "$N" ] || { echo "usage: package.sh <release number>"; exit 1; }
 NAME="rootero-libs-$CORE_VERSION-r$N"
 rm -rf "out/$NAME" && mkdir -p "out/$NAME/esp32-arduino-libs"
-docker run --rm -v rootero-libs-work:/work -v "$PWD/out/$NAME/esp32-arduino-libs":/o rootero-libs-build \
+# As the calling user: on Linux the copied files would belong to root otherwise.
+docker run --rm --user "$(id -u):$(id -g)" -v rootero-libs-work:/work -v "$PWD/out/$NAME/esp32-arduino-libs":/o rootero-libs-build \
     sh -c 'cp -a /work/result/. /o/'
 P="out/$NAME/esp32-arduino-libs"
 [ ! -e "$P/sdkconfig" ] || { echo "a top-level sdkconfig would make PlatformIO reinstall the framework"; exit 1; }

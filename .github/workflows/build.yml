@@ -1,0 +1,104 @@
+# Builds the libraries package with the recipe in this repository, checks it against the
+# stock libraries, and keeps the file with the run. With "publish" on, it also becomes a
+# pre-release. Started by hand only.
+name: Build the libraries package
+
+on:
+  workflow_dispatch:
+    inputs:
+      number:
+        description: "Release number n (the file is rootero-libs-<core>-r<n>.tar.xz)"
+        required: true
+      publish:
+        description: "Publish as a pre-release (off: the file is only kept with this run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # arm64, like the machine the first package was built on.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    outputs:
+      name: ${{ steps.name.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Name of the package (a name is never used twice)
+        id: name
+        env:
+          N: ${{ inputs.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          case "$N" in ''|*[!0-9]*) echo "the release number must be digits"; exit 1;; esac
+          source pins.env
+          NAME="rootero-libs-$CORE_VERSION-r$N"
+          if gh release view "$NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+              echo "$NAME exists already: take the next number"; exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - name: Disk before
+        run: df -h / && nproc && free -g
+      - name: Build environment
+        run: docker build -t rootero-libs-build .
+      - name: Build the chips
+        run: |
+          source pins.env
+          docker run --rm -v rootero-libs-work:/work -v "$PWD":/recipe:ro rootero-libs-build \
+              /recipe/build-in-container.sh "$CHIPS" rootero.defconfig > build.log 2>&1 \
+              || { tail -n 200 build.log; exit 1; }
+          tail -n 5 build.log
+      - name: Pack
+        env:
+          N: ${{ inputs.number }}
+        run: ./package.sh "$N"
+      - name: Check against the stock libraries
+        env:
+          N: ${{ inputs.number }}
+        run: ./check.sh "$N"
+      - name: Checksum
+        env:
+          NAME: ${{ steps.name.outputs.name }}
+        run: |
+          cd out && sha256sum "$NAME.tar.xz" | tee "$NAME.tar.xz.sha256"
+          df -h /
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.name }}
+          path: |
+            out/${{ steps.name.outputs.name }}.tar.xz
+            out/${{ steps.name.outputs.name }}.tar.xz.sha256
+          compression-level: 0
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.name }}
+      - name: Pre-release (fails if the name exists; a file is never replaced)
+        env:
+          NAME: ${{ needs.build.outputs.name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Built by the workflow from commit $GITHUB_SHA: stock sources (pins.env) with the settings of rootero.defconfig. Checked against the stock libraries (check.sh)."
+            echo
+            echo "Not tested on a board yet."
+            echo
+            echo "SHA-256: $(cut -d' ' -f1 "$NAME.tar.xz.sha256")"
+          } > notes.md
+          gh release create "$NAME" "$NAME.tar.xz" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --prerelease --title "$NAME" --notes-file notes.md
